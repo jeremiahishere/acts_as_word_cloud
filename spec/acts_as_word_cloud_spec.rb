@@ -1,115 +1,97 @@
 require File.expand_path(File.dirname(__FILE__) + '/spec_helper')
 
 describe "ActsAsWordCloud" do
-  before(:each) do
-    
-    @publisher = nil
-    @author = Author.new
-    @author.name = "Alfredo Uribe"
-    @site = Case::Case.new 
-    @site.domain = "articles.com"
-    @reader1 = Reader.new
-    @reader2 = Reader.new
-    @status_label1 = UInterview::StatusLabel.new( name: 'Testing1' )
-    @status_label2 = UInterview::StatusLabel.new( name: 'Testing2' )
-    @status1 = UDocket::ApprovalStatus.new
-    @status2 = UDocket::ApprovalStatus.new
-    @status1.stub!(:status_label).and_return(@status_label1) 
-    @status2.stub!(:status_label).and_return(@status_label2) 
-
-    @hearing = UDocket::Hearing.new
-    @hearing.stub(:worker).and_return(@worker)
-    @hearing.stub(:judge).and_return(@judge)
-    @hearing.stub(:case).and_return(@case)
-    @hearing.stub(:audits).and_return([@audit1, @audit2])
-    @hearing.stub(:approval_statuses).and_return([@status1,@status2])
+  before(:all) do
+    @lone_article = Article.make
+    @publisher = Publisher.make(:name => "publisher", :location => "location")
+    @site = Site.make( :name => "site name", :domain => "uff.us", :genre => "site genre", :publisher => @publisher)
+    @author = Author.make(:name => "author", :genre => "author genre", :publisher => @publisher, :site => @site)
+    @article = Article.make(:title => "article title", :genre => "genre", :content => "article text", :author => @author, :publisher => @publisher, :site => @site) 
+    @reader = Reader.make(:username => "reader", :site => @site)
+    @following = Following.make(:article => @article, :reader => @reader, :special_name => "following1")
   end
- 
   
   describe "word_cloud" do
     describe "class method use_word_cloud" do
-      it "should have initialized mixin attributes" do  
-        @hearing.should respond_to :word_cloud_using
-        @hearing.should respond_to :word_cloud_excluded
-        @hearing.should respond_to :word_cloud_depth
-      end
-
-      it "should contain default values in attributes" do
-        @hearing.word_cloud_using.should include :name
-        (@hearing.word_cloud_excluded & [Audit, Denormalizer::MethodOutput, User]).should == [Audit, Denormalizer::MethodOutput, User]
+      it "should contain set or default values in attributes" do
+        @article.word_cloud_using.should == [:title]
+        @article.word_cloud_excluded.should == []
+        @article.word_cloud_depth.should == 1
+        @article.word_cloud_no_mixin_fields.should == [:name, :title, :label]
       end
     end
 
     it "should return the right association models" do
-      @hearing.word_cloud.should include @hearing.name
-      @hearing.word_cloud.should include @judge.name
-      @hearing.word_cloud.should include @case.name
-      @hearing.word_cloud.should include @status1.name
-      @hearing.word_cloud.should include @status2.name
+      @lone_article.word_cloud.should == [@lone_article.title, @lone_article.genre, @lone_article.content, @lone_article.author.name, @lone_article.publisher.name, @lone_article.site.domain ] 
+      @article.word_cloud.should == [@article.title, @article.genre, @article.content, @article.author.name, @article.publisher.name, @article.site.domain, @article.readers.first.username, "Following" ] 
+      
+      @publisher2 = Publisher.make(:name => "publisher2", :location => "location2")
+      @site2 = Site.make( :name => "site2 name", :domain => "uff.us2", :genre => "site2 genre", :publisher => @publisher2)
+      @author2 = Author.make(:name => "author2", :genre => "author2 genre", :publisher => @publisher2, :site => @site2)
+      @article2 = Article.make(:title => "article2 title", :genre => "genre2", :content => "article2 text", :author => @author2, :publisher => @publisher2, :site => @site2) 
+      @following2 = Following.make(:article => @article2, :reader => @reader , :special_name => "following2")
+      
+      @reader.word_cloud(2).should == [@reader.username, @reader.site.domain, @article.title, @article2.title, "Following", @site.name, @site.genre, @site.publisher.name, @site.authors.first.name, @article.genre, @article.content, @article2.genre, @article2.content, @article2.author.name, @article2.publisher.name, @article2.site.domain ]
     end
   end
   
   describe "instance methods:" do
-    
     describe "word_cloud_associated_objects" do
       it "should return correct models when called with belongs_to" do
-        @hearing.word_cloud_associated_objects(:belongs_to).should include @judge
-        @hearing.word_cloud_associated_objects(:belongs_to).should include @case
-        @hearing.word_cloud_associated_objects(:belongs_to).should_not include @worker
+        @article.word_cloud_associated_objects(:belongs_to).should == [@article.author, @article.publisher, @article.site]
       end
       
       it "should return correct models when called with has_many" do
-        @hearing.word_cloud_associated_objects(:has_many).should include [@audit1,@audit2]
-        @hearing.word_cloud_associated_objects(:has_many).should include [@status1,@status2]
+        @article.word_cloud_associated_objects(:has_many).should == [@article.followings, @article.readers]
       end
     end 
     
     describe "word_cloud_get_associated" do   
       it "should return collectoin of non-nil associated models" do
-        @hearing.word_cloud_associated_objects(:belongs_to).should include @judge
-        @hearing.word_cloud_associated_objects(:belongs_to).should include @case
-        # length here means it's ignoring worker because it's nil
-        @hearing.word_cloud_associated_objects(:belongs_to).length.should == 2
+        @article.word_cloud_get_associated(:belongs_to).should == [:author, :publisher, :site]
+        @lone_article.word_cloud_get_associated(:has_many).should == []
+        @article.word_cloud_get_associated(:has_many).should == [:followings, :readers]
       end
     end
  
     describe "word_cloud_exclude_words" do
       it "should not keep excluded models" do
-        @hearing.word_cloud_exclude_words([@judge,@case,@audit1,@audit2,@status1,@status2]).should_not include @audit1
-        @hearing.word_cloud_exclude_words([@judge,@case,@audit1,@audit2,@status1,@status2]).should_not include @audit2
-        @hearing.word_cloud_exclude_words([@judge,@case,@audit1,@audit2,@status1,@status2]).should include @status1
-        @hearing.word_cloud_exclude_words([@judge,@case,@audit1,@audit2,@status1,@status2]).should include @status2
-        @hearing.word_cloud_exclude_words([@judge,@case,@audit1,@audit2,@status1,@status2]).should include @judge
-        @hearing.word_cloud_exclude_words([@judge,@case,@audit1,@audit2,@status1,@status2]).should include @case
+        @article.stub!(:word_cloud_excluded).and_return([Publisher])
+        objects = @article.word_cloud_associated_objects(:belongs_to) 
+        @article.word_cloud_exclude_words(objects).should == [@article.author, @article.site]
       end 
     end
     
     describe "word_cloud_no_mixin" do
       it "should only have models that don't have the mixin" do
-        @hearing.word_cloud_no_mixin([@judge,@case,@status1,@status2]).should_not include @judge
-        @hearing.word_cloud_no_mixin([@judge,@case,@status1,@status2]).should include @status1
-        @hearing.word_cloud_no_mixin([@judge,@case,@status1,@status2]).should include @status2
-        @hearing.word_cloud_no_mixin([@judge,@case,@status1,@status2]).should include @case
+        objects = @article.word_cloud_associated_objects(:has_many) 
+        @article.word_cloud_no_mixin(objects).should == @article.followings
       end 
     end
      
     describe "word_cloud_process_words" do
       it "should return result of first included method to work on objects with mixin" do
-        @hearing.word_cloud_process_words([@judge]).should == ["Dredd"]
+        objects = []
+        objects += @article.word_cloud_associated_objects(:belongs_to) 
+        objects += @article.word_cloud_associated_objects(:has_many) 
+        objects = @article.word_cloud_exclude_words(objects)
+        no_mixin = @article.word_cloud_no_mixin(objects)
+        objects -= no_mixin
+        @article.word_cloud_process_words(objects).should == [@article.author.name, @article.publisher.name, @article.site.domain, @article.readers.first.username]
       end
     end
 
     describe "word_cloud_apply_fields_to" do
-      it "return the value found in the first method to work on object passed in " do
-        @hearing.word_cloud_apply_fields_to(@case).should == "Valid Case Name"
-        #I'm using audit here for the sake of the test... I needed a model that wouldn't respond to name
-        @hearing.word_cloud_apply_fields_to(@audit1).should == "Audit"
+      it "return the value found in the first method to work on object passed in, if there's none return class name" do
+        @article.word_cloud_apply_fields_to(@article.followings.first).should == "Following"
+        @article.stub!(:word_cloud_no_mixin_fields).and_return([:special_name])
+        @article.word_cloud_apply_fields_to(@article.followings.first).should == @article.followings.first.special_name
       end
     end
 
     describe "word_cloud_find_field" do
-      it "should return result of first included method to work on objects with mixin" do
-        @hearing.word_cloud_find_field([@status1,@status2,@case]).should == ["Testing1","Testing2","Valid Case Name"]
+      it "should return result of first included method to work on objects with mixin or their class names" do
+        @article.word_cloud_find_field(@article.followings).should == ["Following"]
       end
     end
   

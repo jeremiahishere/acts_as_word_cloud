@@ -17,8 +17,8 @@ Jeweler::Tasks.new do |gem|
   gem.name = "acts_as_word_cloud"
   gem.homepage = "http://github.com/jeremiahishere/acts_as_word_cloud"
   gem.license = "MIT"
-  gem.summary = %Q{TODO: one-line summary of your gem}
-  gem.description = %Q{TODO: longer description of your gem}
+  gem.summary = %Q{Search function for associated objects on model}
+  gem.description = %Q{Returns values for specified methods on each object containing mixix and values from general methods specified for models that don't have the mixin; depending on 'depth' value passed in the method will also recursively return values for associated objects on each model scanned}
   gem.email = "jeremiah@cloudspace.com"
   gem.authors = ["Jeremiah Hemphill"]
   # dependencies defined in Gemfile

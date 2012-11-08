@@ -1,8 +1,9 @@
 class Article < ActiveRecord::Base
-  acts_as_word_cloud :methods_to_use => [], :excluded_methods => [], :depth => 1
+  acts_as_word_cloud :methods_to_use => [:title], :excluded_models => [], :depth => 1
  
-  has_one :author
-  has_one :publisher
-  has_many :readers
+  belongs_to :author
+  belongs_to :publisher
   belongs_to :site
+  has_many :followings
+  has_many :readers, :through => :followings
 end
