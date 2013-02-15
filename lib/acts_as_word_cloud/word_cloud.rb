@@ -8,6 +8,7 @@ module ActsAsWordCloud
       # args:
       # using, takes an array of Symbols that refer to the methods we'll use on the model calling word_cloud
       # excluded models, takes in Class names of models we want to ignore that are associated to model calling word_cloud
+      # skipped attributes, takes in Symbols referring to attributes that won't be pulled from model calling word_cloud
       # depth level, takes in an Integer referring to how deep of a recursive search we'll make
       # no_mixin_fields, is a default pre-set array of methods to use on models that do not include the mixin
       #
@@ -16,6 +17,7 @@ module ActsAsWordCloud
         # getter/setter methods for the module
         mattr_accessor :word_cloud_using unless respond_to? :word_cloud_using
         mattr_accessor :word_cloud_excluded unless respond_to? :word_cloud_excluded 
+        mattr_accessor :word_cloud_skipped unless respond_to? :word_cloud_skipped 
         mattr_accessor :word_cloud_depth unless respond_to? :word_cloud_depth
         mattr_accessor :word_cloud_no_mixin_fields unless respond_to? :word_cloud_no_mixin_fields
                  
@@ -26,13 +28,17 @@ module ActsAsWordCloud
         unless self.word_cloud_excluded.is_a?(Array)
           self.word_cloud_excluded = []   
         end                      
+        unless self.word_cloud_skipped.is_a?(Array)
+          self.word_cloud_skipped = []   
+        end                      
         unless self.word_cloud_no_mixin_fields.is_a?(Array)
-          self.word_cloud_excluded = []   
+          self.word_cloud_no_mixin_fields = []   
         end                      
               
         # default values if none set in the mixin call on the model
         self.word_cloud_using |= args[:methods_to_use].present? ?  args[:methods_to_use] : []
         self.word_cloud_excluded |= args[:excluded_models].present? ? args[:excluded_models] : []
+        self.word_cloud_skipped |= args[:skipped_attributes].present? ? args[:skipped_attributes] : []
         self.word_cloud_depth = args[:depth].present? ? args[:depth] : ActsAsWordCloud.config.min_depth
         self.word_cloud_no_mixin_fields = ActsAsWordCloud.config.no_mixin_fields
 
@@ -144,6 +150,31 @@ module ActsAsWordCloud
         return output
       end
         
+      
+      # returns values from methods specified in using option
+      # ignores string attributes that are listed in the skipped option
+      #
+      # @returns [Array <String>]
+      #
+      def word_cloud_get_valid_strings
+        output = []
+        ignore = []
+         
+        self.word_cloud_using.each do |m|
+          output << self.send(m)
+        end
+        
+        self.word_cloud_skipped.each do |s|
+          ignore << self.send(s)
+        end
+
+        # current model's string attributes
+        output += self.attributes.select {|k,v| v.class == String}.values
+        output -= ignore
+
+        return output
+      end
+
       # finds string attributes on model
       # processes associations on model, either fetching word_cloud results if they include mixin or default information if they don't
       # if depth is said to something higher than one the word_cloud results on each associated model then makes more recursive calls (BFS)
@@ -156,12 +187,7 @@ module ActsAsWordCloud
         objects = []
         no_mixin = []
 
-        # set method results for current model
-        self.word_cloud_using.each do |m|
-          output << self.send(m)
-        end
-        # current model's string attributes
-        output += self.attributes.keep_if {|k,v| v.class == String}.values
+        output = word_cloud_get_valid_strings
       
         # objects on all associations collected 
         objects += self.word_cloud_associated_objects(:belongs_to)

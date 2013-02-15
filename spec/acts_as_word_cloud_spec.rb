@@ -94,6 +94,15 @@ describe "ActsAsWordCloud" do
         @article.word_cloud_find_field(@article.followings).should == ["Following"]
       end
     end
+
+    describe "word_cloud_get_valid_strings" do
+      it "should return used methods on model and string attributes not in skipped list" do
+        @article.stub!(:word_cloud_skipped).and_return([:title, :content])
+        @article.word_cloud_get_valid_strings.should_not include "article title"
+        @article.word_cloud_get_valid_strings.should_not include "article text"
+        @article.word_cloud_get_valid_strings.should include "genre"
+      end
+    end
   
   end
 end
