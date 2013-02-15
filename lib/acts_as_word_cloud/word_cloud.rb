@@ -40,7 +40,7 @@ module ActsAsWordCloud
         self.word_cloud_excluded |= args[:excluded_models].present? ? args[:excluded_models] : []
         self.word_cloud_skipped |= args[:skipped_attributes].present? ? args[:skipped_attributes] : []
         self.word_cloud_depth = args[:depth].present? ? args[:depth] : ActsAsWordCloud.config.min_depth
-        self.word_cloud_no_mixin_fields = ActsAsWordCloud.config.no_mixin_fields
+        self.word_cloud_no_mixin_fields = [:name, :title, :label]  #ActsAsWordCloud.config.no_mixin_fields
 
         include ActsAsWordCloud::WordCloud::InstanceMethods
       end
@@ -178,10 +178,10 @@ module ActsAsWordCloud
       # finds string attributes on model
       # processes associations on model, either fetching word_cloud results if they include mixin or default information if they don't
       # if depth is said to something higher than one the word_cloud results on each associated model then makes more recursive calls (BFS)
-      #
+      # @params Integer, recursive depth for method; Symbol for the type of result (array or string)
       # @returns [Array <String>] all processed values
       #
-      def word_cloud( depth = self.word_cloud_depth ) 
+      def word_cloud( depth = self.word_cloud_depth, type = :string ) 
 
         output = []
         objects = []
@@ -207,13 +207,17 @@ module ActsAsWordCloud
         if depth < 1
           return "depth for word cloud can't be less than 1"
         elsif depth == 1
-          return output.uniq
+          return ( type == :array ? output.uniq : output.uniq.join(' ') )
         else
-          output |= objects.collect { |o| o.word_cloud(depth-1) }
-          return output.flatten.uniq
+          if type == :array
+            output |= objects.collect { |o| o.word_cloud(depth-1, :array) }
+            return output.flatten.uniq
+          else
+            output |= objects.collect { |o| o.word_cloud(depth-1) }
+            return output.flatten.uniq.join(' ')
+          end
         end
       end  
-    
     end           
   end
 end

@@ -22,8 +22,8 @@ describe "ActsAsWordCloud" do
     end
 
     it "should return the right association models" do
-      @lone_article.word_cloud.should == [@lone_article.title, @lone_article.genre, @lone_article.content, @lone_article.author.name, @lone_article.publisher.name, @lone_article.site.domain ] 
-      @article.word_cloud.should == [@article.title, @article.genre, @article.content, @article.author.name, @article.publisher.name, @article.site.domain, @article.readers.first.username, "Following" ] 
+      @lone_article.word_cloud.should == [@lone_article.title, @lone_article.genre, @lone_article.content, @lone_article.author.name, @lone_article.publisher.name, @lone_article.site.domain ].join(' ') 
+      @article.word_cloud.should == [@article.title, @article.genre, @article.content, @article.author.name, @article.publisher.name, @article.site.domain, @article.readers.first.username, "Following" ].join(' ')
       
       @publisher2 = Publisher.make(:name => "publisher2", :location => "location2")
       @site2 = Site.make( :name => "site2 name", :domain => "uff.us2", :genre => "site2 genre", :publisher => @publisher2)
@@ -31,7 +31,7 @@ describe "ActsAsWordCloud" do
       @article2 = Article.make(:title => "article2 title", :genre => "genre2", :content => "article2 text", :author => @author2, :publisher => @publisher2, :site => @site2) 
       @following2 = Following.make(:article => @article2, :reader => @reader , :special_name => "following2")
       
-      @reader.word_cloud(2).should == [@reader.username, @reader.site.domain, @article.title, @article2.title, "Following", @site.name, @site.genre, @site.publisher.name, @site.authors.first.name, @article.genre, @article.content, @article2.genre, @article2.content, @article2.author.name, @article2.publisher.name, @article2.site.domain ]
+      @reader.word_cloud(2, :array).should == [@reader.username, @reader.site.domain, @article.title, @article2.title, "Following", @site.name, @site.genre, @site.publisher.name, @site.authors.first.name, @article.genre, @article.content, @article2.genre, @article2.content, @article2.author.name, @article2.publisher.name, @article2.site.domain ]
     end
   end
   
