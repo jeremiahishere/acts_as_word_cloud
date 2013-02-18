@@ -1,5 +1,5 @@
 class Site < ActiveRecord::Base
-  acts_as_word_cloud :methods_to_use => [:domain], :excluded_models => [], :skipped_attributes => [], :depth => 1
+  acts_as_word_cloud :methods_to_use => [:domain], :excluded_models => [], :skipped_attributes => [], :depth => 2
   
   has_many :articles
   has_many :authors

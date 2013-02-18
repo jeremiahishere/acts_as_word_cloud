@@ -178,6 +178,7 @@ module ActsAsWordCloud
       # finds string attributes on model
       # processes associations on model, either fetching word_cloud results if they include mixin or default information if they don't
       # if depth is said to something higher than one the word_cloud results on each associated model then makes more recursive calls (BFS)
+      #
       # @params Integer, recursive depth for method; Symbol for the type of result (array or string)
       # @returns [Array <String>] all processed values
       #
@@ -186,7 +187,8 @@ module ActsAsWordCloud
         output = []
         objects = []
         no_mixin = []
-
+        
+        # string attributes in current model
         output = word_cloud_get_valid_strings
       
         # objects on all associations collected 
@@ -205,8 +207,9 @@ module ActsAsWordCloud
        
         # recursive step, if depth > 1, calls word cloud on objects array (which already excludes objects that don't have the mixin)
         if depth < 1
-          return "depth for word cloud can't be less than 1"
+          return "depth for word cloud can't be less than 0"
         elsif depth == 1
+          # recursive steps got a bit more complicated with :array/:string addition, that last line gets rid of duplicate results in the 'long' strings being returned
           return ( type == :array ? output.uniq : output.uniq.join(' ') )
         else
           if type == :array
@@ -214,7 +217,7 @@ module ActsAsWordCloud
             return output.flatten.uniq
           else
             output |= objects.collect { |o| o.word_cloud(depth-1) }
-            return output.flatten.uniq.join(' ')
+            return output.flatten.join(' ').split(' ').uniq.join(' ')
           end
         end
       end  

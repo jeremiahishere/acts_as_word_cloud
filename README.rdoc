@@ -1,6 +1,109 @@
 = acts_as_word_cloud
 
-Description goes here.
+Searches through model to get string attributes and recursively searches other associated models.
+
+= How to use
+
+  class Article < ActiveRecord::Base
+    acts_as_word_cloud :excluded_models => [Reader, Following], :depth => 2
+  
+    belongs_to :site
+    belongs_to :author
+    belongs_to :publisher
+    has_many :followings
+    has_many :readers, :through => :followings 
+  end
+  
+  Article.last.word_cloud(:array)     
+  => ["Artcle title", "genre", "description", "review", "Website name", "domain", "tagline", <names of affiliated companies>, 
+  "Author name", "gender", "location", "bio", "quote", <titles of other authored articles>, 
+  "Publisher name", "address", "city", "state", "zip code", "phone number", <titles of other articles published>]
+
+== Add the gem to your gemfile
+
+  gem "acts_as_word_cloud"
+
+== Install the migration and config
+
+  rails generate acts_as_word_cloud:install
+  rake db:migrate
+
+== Add the mixin to your models
+  
+  class Article < ActiveRecord::Base
+    acts_as_word_cloud :methods_to_use => [<Symbol>], :excluded_models => [<Constant>], :skipped_attributes => [<Symbol>], :depth => <Integer>
+  end 
+
+There are four options to customize search per model:
+* methods_to_use : specify which methods (that return strings) should be called when the model is being searched. Models that are being scanned as associations on the model calling word_cloud will only return a value if each of them has a methods_to_use containing a valid method for that model.
+* excluded_models : select associated models that you would like to leave out of the search.
+* skipped_attributes : by default, all string attributes are returned, unless some are set to be skipped.
+* depth : indicates the level of recursion word_cloud should take on the model being searched.
+
+== Set options for gem's config file
+
+/config/initializers/acts_as_word_cloud.rb:
+  
+  ActsAsWordCloud.configure do |config|
+    config.min_depth = 1         
+    config.no_mixin_fields = [:name, :title, :label]
+  end
+
+Here you can set the default minimum depth to use on all models that include the mixin. (Depth must be greater than or equal to 1, word_cloud will return an error message if not so)
+
+The no_mixin_fields option allows you to list methods to call on models that do not include the mixin for the gem. These models would be traversed during searches on models with the mixin if they aren't explicitly excluded in the hash. If no methods are added to the list or if a model does not respond to any on this list, word_cloud will return the object's class name.
+
+== Searching
+
+Example:
+  
+  class Publisher < ActiveRecord::Base
+    belongs_to :site
+  end
+  
+  class Site < ActiveRecord::Base
+    acts_as_word_cloud :excluded_models => [Author]
+    
+    has_many :publishers
+    has_many :authors           
+    has_many :articles
+  end
+   
+  class Author < ActiveRecord::Base
+    acts_as_word_cloud :methods_to_use => [:full_name, :random_quote] :skipped_attributes => [:phone_number]
+    
+    has_many :articles
+    belongs_to :site             
+  end
+
+  class Article < ActiveRecord::Base
+    acts_as_word_cloud :methods_to_use => [:title], :depth => 2
+   
+    belongs_to :author
+    belongs_to :site             
+  end
+
+Once model defaults are set, the method to call is .word_cloud:
+
+  Site.last.word_cloud
+  => model's string attributes, Publisher names (:name having been added to no_mixin_fields in config file),
+     and associated Article titles (this model ignores its associated Author objects)
+  
+  Author.last.word_cloud        
+  => model's string attributes except for :phone_number and the values for the methods :full_name and :random_quote,
+     associated Article titles, and nothing for associated Sites since methods_to_use isn't set on the Site model 
+  
+  Article.last.word_cloud       
+  => model's string attributes, (because of depth 2) the above data for Author and Site associated to current Article.
+     keeping in mind that the above results are due to the default depth being set to 1 
+     and that so would they be on the recursive calls to those associated objects
+
+When the method is scanning through objects recursively it goes as 'deep' as the original model's setting suggests. There may be cycling through the same objects but it will never be stuck in an endless loop since each further model's depth setting is not consulted.
+
+Optionally, word_cloud can take two parameters:
+
+* An integer to specify a different recursion depth for that specific method call
+* The symbol :array to get results listed in an array, by default they are returned in a single string
 
 == Contributing to acts_as_word_cloud
  
