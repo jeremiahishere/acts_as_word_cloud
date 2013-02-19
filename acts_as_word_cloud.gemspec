@@ -28,6 +28,7 @@ Gem::Specification.new do |s|
     "README.rdoc",
     "Rakefile",
     "VERSION",
+    "acts_as_word_cloud.gemspec",
     "features/acts_as_word_cloud.feature",
     "features/step_definitions/acts_as_word_cloud_steps.rb",
     "features/support/env.rb",
