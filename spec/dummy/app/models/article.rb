@@ -1,9 +1,11 @@
 class Article < ActiveRecord::Base
-  acts_as_word_cloud :methods_to_use => [:title], :excluded_models => [], :skipped_attributes => [], :depth => 1
+  acts_as_word_cloud :included_methods => [:truncated_title], :excluded_methods => [:genre], :excluded_models => [ArticleReader, Reader], :depth => 2, :object_name_method => :title
  
   belongs_to :author
-  belongs_to :publisher
-  belongs_to :site
-  has_many :followings
-  has_many :readers, :through => :followings
+  has_many :article_readers
+  has_many :readers, :through => :article_readers
+
+  def truncated_title
+    title[0..5] if title
+  end
 end

@@ -20,7 +20,7 @@ Jeweler::Tasks.new do |gem|
   gem.summary = %Q{Search function for associated objects on model}
   gem.description = %Q{Returns values for specified methods on each object containing mixix and values from general methods specified for models that don't have the mixin; depending on 'depth' value passed in the method will also recursively return values for associated objects on each model scanned}
   gem.email = "jeremiah@cloudspace.com"
-  gem.authors = ["Jeremiah Hemphill"]
+  gem.authors = ["Jeremiah Hemphill", "Alfredo Uribe"]
   # dependencies defined in Gemfile
 end
 Jeweler::RubygemsDotOrgTasks.new
@@ -35,9 +35,6 @@ RSpec::Core::RakeTask.new(:rcov) do |spec|
   spec.pattern = 'spec/**/*_spec.rb'
   spec.rcov = true
 end
-
-require 'cucumber/rake/task'
-Cucumber::Rake::Task.new(:features)
 
 task :default => :spec
 

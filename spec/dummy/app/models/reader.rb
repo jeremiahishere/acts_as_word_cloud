@@ -1,7 +1,10 @@
 class Reader < ActiveRecord::Base
-  acts_as_word_cloud :methods_to_use => [:username], :excluded_models => [], :skipped_attributes => [], :depth => 1
+  acts_as_word_cloud
   
-  has_many :followings
-  has_many :articles, :through => :followings
-  belongs_to :site
+  has_many :article_readers
+  has_many :articles, :through => :article_readers
+
+  def to_s
+    "Reader #{id}"
+  end
 end

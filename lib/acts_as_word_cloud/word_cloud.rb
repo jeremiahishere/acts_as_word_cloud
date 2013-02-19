@@ -5,223 +5,143 @@ module ActsAsWordCloud
     end
 
     module ClassMethods
-      # args:
-      # using, takes an array of Symbols that refer to the methods we'll use on the model calling word_cloud
-      # excluded models, takes in Class names of models we want to ignore that are associated to model calling word_cloud
-      # skipped attributes, takes in Symbols referring to attributes that won't be pulled from model calling word_cloud
-      # depth level, takes in an Integer referring to how deep of a recursive search we'll make
-      # no_mixin_fields, is a default pre-set array of methods to use on models that do not include the mixin
-      #
-      def acts_as_word_cloud(args)
+      # Sets up the word_cloud method and takes arguments that control what it returns
+      # 
+      # @param [Hash] args
+      # @param args [Array] :included_methods An array of method symbols used to create this model's word cloud
+      # @param args [Array] :excluded_methods An array of method symbols used to remove data from the word cloud.  This should be used to remove database fields from the word cloud.
+      # @param args [Array] :excluded_models An array of models whose data should not be included in the word cloud
+      # @param args [Integer] :depth_level How many levels of associations to include
+      # @param args [Symbol] :object_name_method  How to name the object when included in the word cloud as an association
+      def acts_as_word_cloud(args = {})
 
         # getter/setter methods for the module
-        mattr_accessor :word_cloud_using unless respond_to? :word_cloud_using
-        mattr_accessor :word_cloud_excluded unless respond_to? :word_cloud_excluded 
-        mattr_accessor :word_cloud_skipped unless respond_to? :word_cloud_skipped 
-        mattr_accessor :word_cloud_depth unless respond_to? :word_cloud_depth
-        mattr_accessor :word_cloud_no_mixin_fields unless respond_to? :word_cloud_no_mixin_fields
-                 
-        # set empty arrays to allow |= on values          
-        unless self.word_cloud_using.is_a?(Array)
-          self.word_cloud_using = []      
-        end
-        unless self.word_cloud_excluded.is_a?(Array)
-          self.word_cloud_excluded = []   
-        end                      
-        unless self.word_cloud_skipped.is_a?(Array)
-          self.word_cloud_skipped = []   
-        end                      
-        unless self.word_cloud_no_mixin_fields.is_a?(Array)
-          self.word_cloud_no_mixin_fields = []   
-        end                      
-              
-        # default values if none set in the mixin call on the model
-        self.word_cloud_using |= args[:methods_to_use].present? ?  args[:methods_to_use] : []
-        self.word_cloud_excluded |= args[:excluded_models].present? ? args[:excluded_models] : []
-        self.word_cloud_skipped |= args[:skipped_attributes].present? ? args[:skipped_attributes] : []
-        self.word_cloud_depth = args[:depth].present? ? args[:depth] : ActsAsWordCloud.config.min_depth
-        self.word_cloud_no_mixin_fields = [:name, :title, :label]  #ActsAsWordCloud.config.no_mixin_fields
+        mattr_accessor :word_cloud_attributes unless respond_to? :word_cloud_attributes
+        allowed_options = [:included_methods, :excluded_methods, :excluded_models, :depth, :object_name_methods]
+
+        # set defaults
+        args[:included_methods] ||= []
+        args[:excluded_methods] ||= []
+        args[:excluded_models] ||= []
+        args[:depth] ||= ::ActsAsWordCloud.config.default_search_depth
+        # note that the user passes in object_name_method and it is turned into the array object_name_methods
+        args[:object_name_methods] = args[:object_name_method] ? [args[:object_name_method]] : ::ActsAsWordCloud.config.object_name_methods
+
+        self.word_cloud_attributes = args.keep_if { |key| allowed_options.include?(key) }
 
         include ActsAsWordCloud::WordCloud::InstanceMethods
       end
     end
 
     module InstanceMethods
-    
-      # collects associations on a model as long as they're not nil
+      # Uses recursive word cloud to find text attributes, associations and included methods on the model
       #
-      # @param [Symbol] the association type to look in
-      # @returns [Array <Symbol>] association names under the passed in type
-      #
-      def word_cloud_get_associated(type)
-        self.class.reflect_on_all_associations(type).select {|r| self.send(r.name).present? }.collect { |r| r.name }
+      # @param [Symbol] return_type Whether to return an array or string, defaulting to :string
+      # @return [Array<String> or String] All processed values
+      def word_cloud(return_type = :string)
+        output = recursive_word_cloud(self.word_cloud_attributes[:depth]).uniq.flatten
+        if return_type == :string
+          return output.join(' ')
+        else
+          return output
+        end
       end
+
+      protected 
+
+      # Finds all text attributes, associated objects, and included methods down to a specified depth
+      #
+      # @param [Integer] depth How many layers of associations to search
+      # @return [Array] The word cloud for the specified object and depth
+      def recursive_word_cloud(depth) 
+        # prepare an array of strings to be used as an output
+        output = []
+
+        # list of database attributes and selected methods minus a list of excluded methods
+        output |= word_cloud_get_valid_strings
       
-      # goes through array of objects or arrays (in the case of has_many association)
-      #
-      # @param [Symbol] the association type to fetch objects from
-      # @returns [Array <Object>] that under association passed in
-      #
-      def word_cloud_associated_objects(type)
-        objects = []
-        associated = word_cloud_get_associated(type)
-        associated.each do |o|
-          if o.class == Array
-            nested_array = self.send(o)
-            nested_array.each do |a|
-              objects << a
-            end
+        # array of objects for every association minus a list of excluded objects
+        objects = word_cloud_associated_objects
+        objects.each do |obj|
+          if obj.respond_to?(:recursive_word_cloud) && depth > 1
+            # if the object has a word cloud mixin and we can recurse
+            output |= obj.recursive_word_cloud(depth - 1)
           else
-            objects << self.send(o)
+            # otherwise get the default name for the object
+            output |= [self.word_cloud_object_name(obj)]
           end
         end
+        return output
+      end  
+
+      # returns values from methods specified in included_methods option
+      # ignores string attributes that are listed in the excluded_methods option
+      #
+      # Note that his uses content_columns to read the database data.
+      # At some point, we may want to increase the types that are allowed or use a blacklist instead of a whitelist
+      #
+      # @return [Array <String>] The database fields and included methods with excluded methods removed
+      def word_cloud_get_valid_strings
+        # database fields
+        string_attributes = self.class.content_columns.collect { |c| c.name.to_sym if c.type == :string || c.type == :text }.compact
+        #  included methods
+        methods = self.word_cloud_attributes[:included_methods] | string_attributes
+        # excluded methods
+        methods -= self.word_cloud_attributes[:excluded_methods]
+
+        return methods.map { |m| self.send(m) }
+      end
+
+      # Gets a list of objects associated to the calling object
+      # Uses rails reflect_on_all_associations methods.  Only pulls from belongs_to, has_one, and has_many for now.
+      # Each association should return nil, a single object, or an array of objects
+      #
+      # @return [Array]  List of models associated to the calling object
+      def word_cloud_associated_objects
+        objects = []
+        # get associations
+        [:belongs_to, :has_one, :has_many].each do |association_type|
+          word_cloud_association_names_by_type(association_type).each do |association|
+            objects << self.send(association)
+          end
+        end
+        objects.flatten!
+        # remove excluded associations
+        objects = objects.delete_if { |o| self.word_cloud_attributes[:excluded_models].include?(o.class) }
         return objects
       end  
     
-      # removes objects that are in the list of objects to exclude
-      #
-      # @returns [Array <Object>] that are not in the excluded list
-      #
-      def word_cloud_exclude_words(objects)
-        if objects.nil?
-          return []
-        else
-          result = objects.flatten.reject { |x| self.word_cloud_excluded.include?(x.class) }
-          return result.present? ? result : []
-        end
-      end
-    
-      # removes objects that include word_cloud mixin
-      #
-      # @returns [Array <Object>] that don't include the mixin
-      #
-      def word_cloud_no_mixin(objects)
-        if objects.nil?
-          return []
-        else
-          result = objects.flatten.reject { |n| n.respond_to?(:word_cloud) }
-          result.present? ? result : []
-        end
+      # @return [Array <Symbol>] Collect the names of associations of a specific typeI
+      def word_cloud_association_names_by_type(type)
+        self.class.reflect_on_all_associations(type).collect(&:name)
       end
       
-      # goes through each object passed in trying the included methods for each of those objects
-      # keeps the first one to work and returns the value of that method called on the object
+      # Name an object that is included in the word cloud
+      # 
+      # When the depth level is low or an included gem does not use the word cloud mixin
+      # use a special rule to determine the name of the object.  The word cloud attribute
+      # object_name_methods is used for objects that use the word cloud.  Otherwise, the
+      # default config option is used.  If none of the methods are found on the object, an
+      # empty string is returned.
       #
-      # @param [Array <Objects>] to look through for values
-      # @returns [Array <String>] values returned by method
-      #
-      def word_cloud_process_words(objects)
-        output = []
-        objects.each do |obj|
-          obj_calls = obj.word_cloud_using.select { |f| obj.respond_to?(f) }
-          if obj_calls.first.present?
-            output << obj.send(obj_calls.first)
+      # @param [ActiveRecord::Base] object The object to name
+      # @param [String] The name of the object or a blank string
+      def word_cloud_object_name(object)
+        output = ""
+        method_list = []
+        if object.respond_to?(:word_cloud_attributes)
+          method_list = object.word_cloud_attributes[:object_name_methods]
+        else
+          method_list = ::ActsAsWordCloud.config.object_name_methods
+        end
+        method_list.each do |method|
+          if object.respond_to?(method)
+            output = object.send(method)
+            break
           end
         end
         return output
       end
-        
-      # goes through each of the default fields to call on models that don't include mixin
-      # and attempts to return the value of the first one to work, if none do return model class name
-      #
-      # @returns [String] value for object passed in 
-      #
-      def word_cloud_apply_fields_to(no_mixin_model)
-        # fields that should be tried on models that don't have the mixin, set with other attributes
-        fields = self.word_cloud_no_mixin_fields
-        fields.each do |f|
-          if no_mixin_model.respond_to?(f)
-            return no_mixin_model.send(f)
-          end
-        end
-        return no_mixin_model.class.name
-      end
-        
-      # goes through models that don't include mixin trying to find a relevant value for each
-      #
-      # @returns [Array <String>] of values for objects passed in
-      #
-      def word_cloud_find_field(no_mixin)
-        output = []
-        flag = 0
-        no_mixin.each do |n|
-          output << word_cloud_apply_fields_to(n) 
-        end
-        return output
-      end
-        
-      
-      # returns values from methods specified in using option
-      # ignores string attributes that are listed in the skipped option
-      #
-      # @returns [Array <String>]
-      #
-      def word_cloud_get_valid_strings
-        output = []
-        ignore = []
-         
-        self.word_cloud_using.each do |m|
-          output << self.send(m)
-        end
-        
-        self.word_cloud_skipped.each do |s|
-          ignore << self.send(s)
-        end
-
-        # current model's string attributes
-        output += self.attributes.select {|k,v| v.class == String}.values
-        output -= ignore
-
-        return output
-      end
-
-      # finds string attributes on model
-      # processes associations on model, either fetching word_cloud results if they include mixin or default information if they don't
-      # if depth is said to something higher than one the word_cloud results on each associated model then makes more recursive calls (BFS)
-      #
-      # @params Integer, recursive depth for method; Symbol for the type of result (array or string)
-      # @returns [Array <String>] all processed values
-      #
-      def word_cloud( depth = self.word_cloud_depth, type = :string ) 
-
-        output = []
-        objects = []
-        no_mixin = []
-        
-        # string attributes in current model
-        output = word_cloud_get_valid_strings
-      
-        # objects on all associations collected 
-        objects += self.word_cloud_associated_objects(:belongs_to)
-        objects += self.word_cloud_associated_objects(:has_one)
-        objects += self.word_cloud_associated_objects(:has_many) 
-        
-        # remove objects that have been explicitly excluded on current model
-        objects = word_cloud_exclude_words(objects)
-        # find associated models that do not include mixin 
-        no_mixin = word_cloud_no_mixin(objects)
-        objects -= no_mixin
-       
-        # process object using set methods for each model with mixin, or try preset general methods for models without
-        output += self.word_cloud_process_words(objects) + word_cloud_find_field(no_mixin)
-       
-        # recursive step, if depth > 1, calls word cloud on objects array (which already excludes objects that don't have the mixin)
-        if depth < 1
-          return "depth for word cloud can't be less than 0"
-        elsif depth == 1
-          # recursive steps got a bit more complicated with :array/:string addition, that last line gets rid of duplicate results in the 'long' strings being returned
-          return ( type == :array ? output.uniq : output.uniq.join(' ') )
-        else
-          if type == :array
-            output |= objects.collect { |o| o.word_cloud(depth-1, :array) }
-            return output.flatten.uniq
-          else
-            output |= objects.collect { |o| o.word_cloud(depth-1) }
-            return output.flatten.join(' ').split(' ').uniq.join(' ')
-          end
-        end
-      end  
     end           
   end
 end
-

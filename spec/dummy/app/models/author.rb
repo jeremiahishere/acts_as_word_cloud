@@ -1,7 +1,10 @@
 class Author < ActiveRecord::Base
-  acts_as_word_cloud :methods_to_use => [:name], :excluded_models => [], :skipped_attributes => [], :depth => 1
+  acts_as_word_cloud
   
   has_many :articles
   belongs_to :publisher
-  belongs_to :site
+
+  def to_s
+    "Author #{id}"
+  end
 end
