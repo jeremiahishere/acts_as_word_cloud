@@ -15,5 +15,5 @@ ActsAsWordCloud.configure do |config|
   #
   # Each of the contants in this list will be added to the word cloud attribute, excluded_models.
   # This will happen even when the attribute is included in the mixin call.
-  # config.premanently_excluded_models = []
+  # config.permanently_excluded_models = []
 end
