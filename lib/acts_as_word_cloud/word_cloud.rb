@@ -22,7 +22,10 @@ module ActsAsWordCloud
         # set defaults
         args[:included_methods] ||= []
         args[:excluded_methods] ||= []
+
         args[:excluded_models] ||= []
+        args[:excluded_models] |= ::ActsAsWordCloud.config.permanently_excluded_models
+
         args[:depth] ||= ::ActsAsWordCloud.config.default_search_depth
         # note that the user passes in object_name_method and it is turned into the array object_name_methods
         args[:object_name_methods] = args[:object_name_method] ? [args[:object_name_method]] : ::ActsAsWordCloud.config.object_name_methods
