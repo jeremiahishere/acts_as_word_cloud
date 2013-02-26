@@ -23,6 +23,7 @@ end
 Author.blueprint do
   publisher { Publisher.make }
   name { generate_tiny_text }
+  biography { generate_text }
 end
 
 Publisher.blueprint do

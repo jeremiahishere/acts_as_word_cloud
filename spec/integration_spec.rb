@@ -108,12 +108,13 @@ describe "Integration tests" do
       
     end
 
-    it "should return multiple levels of associations if the depth is set to 2" do
+    it "should return two levels of associations if the depth is set to 2" do
       @word_cloud_output = @article.word_cloud(:array)
 
       expected_word_cloud_output = [
-        @author.name,
-        @publisher.name,
+        @author.name, # default name
+        @author.biography, # from author word cloud
+        @publisher.name # default name
       ]
       expected_word_cloud_output.each do |str|
         @word_cloud_output.should include str

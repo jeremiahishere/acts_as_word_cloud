@@ -33,6 +33,7 @@ describe "ActsAsWordCloud" do
       @article.stub(:word_cloud_get_valid_strings).and_return([])
       @article.stub(:word_cloud_associated_objects).and_return([])
     end
+    
     it "should call word_cloud_get_valid_strings" do
       @article.should_receive(:word_cloud_get_valid_strings).and_return([])
       @article.send(:recursive_word_cloud, 1)
@@ -43,9 +44,9 @@ describe "ActsAsWordCloud" do
       @article.send(:recursive_word_cloud, 1)
     end
 
-    it "should call rescursive_word_cloud on an associated object if the depth is more than 1" do
+    it "should call rescursive_word_cloud on an associated object if the depth is more than 1 and it should include the calling object in the parameters" do
       object_with_word_cloud = mock(Author)
-      object_with_word_cloud.should_receive(:recursive_word_cloud).with(1).and_return([])
+      object_with_word_cloud.should_receive(:recursive_word_cloud).with(1, [@article]).and_return([])
 
       @article.stub(:word_cloud_associated_objects).and_return([object_with_word_cloud])
       @article.send(:recursive_word_cloud, 2)
@@ -66,6 +67,15 @@ describe "ActsAsWordCloud" do
 
       @article.should_receive(:word_cloud_object_name).with(object_without_word_cloud)
       @article.send(:recursive_word_cloud, 2)
+    end
+
+    it "should not call rescursive_word_cloud on an associated object if the object is included in the already_included_objects" do
+      object_with_word_cloud = mock(Author)
+      object_with_word_cloud.should_not_receive(:recursive_word_cloud)
+      object_with_word_cloud.should_not_receive(:name)
+
+      @article.stub(:word_cloud_associated_objects).and_return([object_with_word_cloud])
+      @article.send(:recursive_word_cloud, 2, [object_with_word_cloud])
     end
 
     it "should return an array of strings" do

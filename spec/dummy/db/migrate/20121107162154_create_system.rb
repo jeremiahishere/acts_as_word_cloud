@@ -12,6 +12,7 @@ class CreateSystem < ActiveRecord::Migration
     create_table :authors do |t|
       t.integer :publisher_id
       t.string :name
+      t.text :biography
       
       t.timestamps
     end

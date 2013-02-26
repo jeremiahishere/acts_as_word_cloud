@@ -30,6 +30,7 @@ ActiveRecord::Schema.define(:version => 20121107162154) do
   create_table "authors", :force => true do |t|
     t.integer  "publisher_id"
     t.string   "name"
+    t.text     "biography"
     t.datetime "created_at"
     t.datetime "updated_at"
   end

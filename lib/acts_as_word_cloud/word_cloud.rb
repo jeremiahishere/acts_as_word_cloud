@@ -53,10 +53,12 @@ module ActsAsWordCloud
       protected 
 
       # Finds all text attributes, associated objects, and included methods down to a specified depth
+      # Avoids running the word cloud on objects that have already been included
       #
       # @param [Integer] depth How many layers of associations to search
+      # @param [Array] already_included_objects List of objects of models that have already been included in the word cloud
       # @return [Array] The word cloud for the specified object and depth
-      def recursive_word_cloud(depth) 
+      def recursive_word_cloud(depth, already_included_objects = []) 
         # prepare an array of strings to be used as an output
         output = []
 
@@ -65,10 +67,16 @@ module ActsAsWordCloud
       
         # array of objects for every association minus a list of excluded objects
         objects = word_cloud_associated_objects
+
+        # do not search again on self
+        already_included_objects << self
+
         objects.each do |obj|
-          if obj.respond_to?(:recursive_word_cloud) && depth > 1
+          if already_included_objects.include?(obj)
+            # pass because the data is already in the output
+          elsif obj.respond_to?(:recursive_word_cloud) && depth > 1
             # if the object has a word cloud mixin and we can recurse
-            output |= obj.recursive_word_cloud(depth - 1)
+            output |= obj.recursive_word_cloud(depth - 1, already_included_objects)
           else
             # otherwise get the default name for the object
             output |= [self.word_cloud_object_name(obj)]
