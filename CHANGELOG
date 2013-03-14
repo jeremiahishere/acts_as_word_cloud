@@ -1,6 +1,9 @@
 == unreleased changes
 
-* Improved performacne of the recursive word cloud by avoiding calling it multiple times on the same object
+== 0.0.4
+
+* Improved performance of the recursive word cloud by avoiding calling it multiple times on the same object
+* Made rails requirements more general
 
 == 0.0.3
 
